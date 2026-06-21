@@ -35,6 +35,13 @@ the high-value part: the actual sequencing and relationship-building.
 Reliable import layer that turns a Salesforce **Printable View PDF** into clean,
 deduplicated account data, while preserving the raw rows for audit.
 
+> **Parsing note:** Salesforce Printable-View PDFs draw the table with
+> horizontal row rules but *no vertical column rules*, so naive cell extraction
+> collapses all five columns into one. The parser instead reconstructs columns
+> from word x-positions: it finds each column's header anchor and assigns every
+> word to the rightmost column whose left edge it has reached. Validated on a
+> real 65-account export (65/65 accounts, all domains resolved).
+
 ### What it does
 
 1. Accepts a Salesforce Printable-View PDF
@@ -88,7 +95,7 @@ outbound-signal-engine/
 │   └── schema.sql               # Supabase / Postgres schema (3 tables)
 ├── src/outbound_signal_engine/
 │   ├── domains.py               # URL -> clean domain normalization
-│   ├── pdf_import.py            # parse Salesforce PDF -> rows
+│   ├── pdf_import.py            # geometry-based Salesforce PDF -> rows
 │   ├── accounts.py              # clean + dedupe + batch logic
 │   └── config.py                # expected columns + settings
 ├── scripts/
