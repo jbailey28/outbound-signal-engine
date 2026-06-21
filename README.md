@@ -25,7 +25,7 @@ the high-value part: the actual sequencing and relationship-building.
 | Milestone | Scope | Status |
 |-----------|-------|--------|
 | **M1 — Account Book Import** | Parse Salesforce Printable-View PDFs → normalize domains → dedupe → clean CSV + audit trail → Supabase | ✅ done |
-| **M2 — Affiliate/Partner Signal Detection** | Tier 1: derive platform from CRM Competitors column. Tier 2: scrape sites for program pages + affiliate-network fingerprints | 🔨 Tier 1 done |
+| **M2 — Affiliate/Partner Signal Detection** | Tier 1: derive platform from CRM Competitors column. Tier 2: scrape sites for program pages + affiliate-network fingerprints | ✅ done |
 | M3 — Trigger Detection | Recent news / economic / hiring triggers per account | planned |
 | M4 — Account Scoring | Rank accounts; surface the daily top 5 | planned |
 | M5 — First-Touch Draft Generation | Draft (not send) emails from signals + triggers + sample messaging | planned |

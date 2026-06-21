@@ -176,6 +176,53 @@ def fetch_accounts(client, columns: str = "id,account_name,domain,website,compet
         page += 1
 
 
+def load_signals(client, signal_rows: list[dict], fetch_rows: list[dict] | None = None) -> dict:
+    """Upsert account_signals (one current per account) + append fetch audit.
+
+    `signal_rows` come from the reviewed signals CSV; evidence is a JSON string
+    there and is parsed back to a dict for the jsonb column. has_program '' -> None.
+    """
+    import json as _json
+
+    payload = []
+    for r in signal_rows:
+        if not r.get("account_id"):
+            continue  # can't link a signal without an account
+        hp = r.get("has_program", "")
+        has_program = None if hp in ("", None) else (hp in ("True", "true", True))
+        ev = r.get("evidence") or "{}"
+        payload.append({
+            "account_id": r["account_id"],
+            "signal_type": "affiliate_program",
+            "has_program": has_program,
+            "platform": r.get("platform") or "unknown",
+            "source": r["source"],
+            "confidence": r.get("confidence") or "low",
+            "evidence": _json.loads(ev) if isinstance(ev, str) else ev,
+        })
+
+    _chunked_upsert(client, "account_signals", payload,
+                    on_conflict="account_id,signal_type")
+
+    inserted_fetches = 0
+    if fetch_rows:
+        fpayload = []
+        for f in fetch_rows:
+            if not f.get("account_id"):
+                continue
+            fpayload.append({
+                "account_id": f["account_id"],
+                "url": f.get("url"),
+                "http_status": int(f["http_status"]) if str(f.get("http_status", "")).isdigit() else None,
+                "matched": {"note": f.get("note", "")},
+                "error": f.get("error") or None,
+            })
+        _chunked_insert(client, "raw_site_fetches", fpayload)
+        inserted_fetches = len(fpayload)
+
+    return {"signals_upserted": len(payload), "fetches_inserted": inserted_fetches}
+
+
 def _chunked_insert(client, table: str, rows: list[dict], size: int = 500) -> None:
     for i in range(0, len(rows), size):
         client.table(table).insert(rows[i:i + size]).execute()

@@ -10,3 +10,7 @@ pytest==8.3.3
 # --- Supabase loader ---
 # 2.31+ required: older clients reject the new sb_secret_/sb_publishable_ API keys
 supabase==2.31.0          # load reviewed artifacts into Supabase
+
+# --- Tier-2 website scraping ---
+requests==2.32.3          # polite website fetching
+beautifulsoup4==4.12.3    # parse HTML for program links / network fingerprints
