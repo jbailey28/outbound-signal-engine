@@ -223,6 +223,38 @@ def load_signals(client, signal_rows: list[dict], fetch_rows: list[dict] | None 
     return {"signals_upserted": len(payload), "fetches_inserted": inserted_fetches}
 
 
+def fetch_accounts_with_signals(client) -> list[dict]:
+    """Accounts joined to their affiliate_program signal (left join)."""
+    rows = (
+        client.table("accounts")
+        .select("id,account_name,domain,account_signals(has_program,platform,signal_type)")
+        .execute()
+        .data
+    )
+    out = []
+    for a in rows:
+        sig = next(
+            (s for s in (a.get("account_signals") or [])
+             if s.get("signal_type") == "affiliate_program"),
+            None,
+        )
+        out.append({
+            "id": a["id"],
+            "account_name": a["account_name"],
+            "domain": a.get("domain"),
+            "has_program": sig.get("has_program") if sig else None,
+            "platform": sig.get("platform") if sig else None,
+        })
+    return out
+
+
+def load_scores(client, score_rows: list[dict]) -> dict:
+    """Upsert account_scores (one current score per account)."""
+    payload = [r for r in score_rows if r.get("account_id")]
+    _chunked_upsert(client, "account_scores", payload, on_conflict="account_id")
+    return {"scores_upserted": len(payload)}
+
+
 def _chunked_insert(client, table: str, rows: list[dict], size: int = 500) -> None:
     for i in range(0, len(rows), size):
         client.table(table).insert(rows[i:i + size]).execute()
