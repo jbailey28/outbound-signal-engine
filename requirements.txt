@@ -8,4 +8,5 @@ reportlab==4.2.5          # generate the synthetic sample PDF
 pytest==8.3.3
 
 # --- Supabase loader ---
-supabase==2.9.1           # load reviewed artifacts into Supabase
+# 2.31+ required: older clients reject the new sb_secret_/sb_publishable_ API keys
+supabase==2.31.0          # load reviewed artifacts into Supabase
