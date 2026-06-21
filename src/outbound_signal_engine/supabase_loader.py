@@ -151,6 +151,31 @@ def load(
     }
 
 
+def make_client(url: str, service_role_key: str):
+    """Create a Supabase client (service-role key bypasses RLS)."""
+    from supabase import create_client
+
+    return create_client(url, service_role_key)
+
+
+def fetch_accounts(client, columns: str = "id,account_name,domain,website,competitors") -> list[dict]:
+    """Read all accounts, paging past PostgREST's default 1000-row cap."""
+    out: list[dict] = []
+    page, size = 0, 1000
+    while True:
+        rows = (
+            client.table("accounts")
+            .select(columns)
+            .range(page * size, page * size + size - 1)
+            .execute()
+            .data
+        )
+        out.extend(rows)
+        if len(rows) < size:
+            return out
+        page += 1
+
+
 def _chunked_insert(client, table: str, rows: list[dict], size: int = 500) -> None:
     for i in range(0, len(rows), size):
         client.table(table).insert(rows[i:i + size]).execute()
