@@ -80,8 +80,26 @@ python scripts/import_accounts.py data/raw_pdfs/my_export.pdf
 #   <batch>__manifest.json        <- batch metadata
 ```
 
-Nothing is written to Supabase by this script. Loading the reviewed CSV into
-Supabase is a separate, explicit step (see `db/schema.sql`).
+Nothing is written to Supabase by the import script. Loading the reviewed CSV is
+a separate, explicit step:
+
+```bash
+# one-time: create the tables
+#   open db/schema.sql in the Supabase SQL editor and run it
+
+# set credentials
+cp .env.example .env        # then fill SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
+
+# validate the artifacts without writing anything
+python scripts/load_to_supabase.py data/output/<file>__<hash8> --dry-run
+
+# load for real (insert batch + raw rows, upsert accounts on dedup_key)
+python scripts/load_to_supabase.py data/output/<file>__<hash8>
+```
+
+The loader is idempotent on the PDF's content hash: re-running the same file is
+skipped unless you pass `--force`. Re-importing an *updated* export upserts
+changed accounts on `dedup_key` and records a new batch.
 
 ## Project layout
 

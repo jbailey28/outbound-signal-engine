@@ -59,16 +59,18 @@ comment on table raw_account_rows is
 -- ---------------------------------------------------------------------------
 -- 3. accounts — cleaned, deduplicated account book
 -- ---------------------------------------------------------------------------
--- Dedup key:
---   * domain (normalized website) is the PRIMARY dedup key when present
---   * when a row has no website, we fall back to a normalized name key
--- Both are enforced as partial unique indexes below so upserts are clean.
+-- Dedup key (`dedup_key`) is always present and is the single source of truth:
+--   * "domain:<registrable-domain>" when the account has a website
+--   * "name:<normalized-name>"      when it doesn't
+-- This collapses the domain-primary / name-fallback rule into ONE unique key,
+-- which makes cross-import upserts a clean single ON CONFLICT path.
 create table if not exists accounts (
     id               uuid primary key default gen_random_uuid(),
     account_name     text not null,
     website          text,           -- cleaned, canonical URL (https://domain)
-    domain           text,           -- normalized registrable domain (dedup key)
-    name_key         text not null,  -- normalized name (fallback dedup key)
+    domain           text,           -- normalized registrable domain (for joins/queries)
+    name_key         text not null,  -- normalized name
+    dedup_key        text not null,  -- "domain:..." or "name:..." — UNIQUE
     competitors      text,
     industry         text,
     sub_industry     text,
@@ -81,16 +83,15 @@ create table if not exists accounts (
     updated_at       timestamptz not null default now()
 );
 
--- Primary dedup: one account per domain (only rows that HAVE a domain).
-create unique index if not exists uq_accounts_domain
+-- One account per dedup_key — the merge target for every re-import.
+create unique index if not exists uq_accounts_dedup_key on accounts(dedup_key);
+
+-- Non-unique index on domain for downstream lookups/joins (signals, scoring).
+create index if not exists idx_accounts_domain
     on accounts(domain) where domain is not null;
 
--- Fallback dedup: one account per normalized name when there's no domain.
-create unique index if not exists uq_accounts_name_key_no_domain
-    on accounts(name_key) where domain is null;
-
 comment on table accounts is
-    'Cleaned, deduplicated account book. Deduped on domain, then name_key.';
+    'Cleaned, deduplicated account book. One row per dedup_key (domain or name).';
 
 -- keep updated_at fresh on any change
 create or replace function set_updated_at()
@@ -107,16 +108,16 @@ create trigger trg_accounts_updated_at
     for each row execute function set_updated_at();
 
 -- ---------------------------------------------------------------------------
--- Upsert reference (how the loader will merge a reviewed CSV):
+-- Upsert reference (how the loader merges a reviewed CSV — single conflict key):
 --
---   insert into accounts (account_name, website, domain, name_key,
+--   insert into accounts (account_name, website, domain, name_key, dedup_key,
 --                         competitors, industry, sub_industry,
 --                         first_seen_batch, last_seen_batch)
 --   values (...)
---   on conflict (domain) where domain is not null
---   do update set
+--   on conflict (dedup_key) do update set
 --       account_name    = excluded.account_name,
 --       website         = excluded.website,
+--       domain          = excluded.domain,
 --       competitors     = excluded.competitors,
 --       industry        = excluded.industry,
 --       sub_industry    = excluded.sub_industry,

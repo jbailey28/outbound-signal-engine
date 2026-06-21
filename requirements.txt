@@ -7,5 +7,5 @@ python-dotenv==1.0.1      # load config from .env
 reportlab==4.2.5          # generate the synthetic sample PDF
 pytest==8.3.3
 
-# --- later milestones (kept here so the schema/loader stay reproducible) ---
-# supabase==2.9.1         # uncomment when wiring the Supabase loader
+# --- Supabase loader ---
+supabase==2.9.1           # load reviewed artifacts into Supabase

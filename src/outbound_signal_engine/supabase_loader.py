@@ -1,0 +1,162 @@
+"""Load reviewed import artifacts into Supabase.
+
+Reads the three files an import produces (clean CSV, raw CSV, manifest JSON) and
+writes them to the schema in db/schema.sql:
+
+    import_batches   <- one row, from the manifest
+    raw_account_rows <- every row from the raw CSV (audit)
+    accounts         <- upsert from the clean CSV, keyed on dedup_key
+
+The loader deliberately consumes the *reviewed* CSVs rather than re-parsing the
+PDF, so nothing reaches the database that a human hasn't seen.
+
+Requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment (.env).
+The service-role key is used so the import can write past row-level security;
+keep it server-side only.
+"""
+
+from __future__ import annotations
+
+import csv
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+ACCOUNT_COLUMNS = [
+    "account_name", "website", "domain", "name_key", "dedup_key",
+    "competitors", "industry", "sub_industry",
+]
+RAW_COLUMNS = [
+    "row_index", "page_number",
+    "account_name", "website", "competitors", "industry", "sub_industry",
+]
+
+
+@dataclass
+class ImportArtifacts:
+    """The three files produced by one import batch."""
+
+    manifest: dict[str, Any]
+    clean_rows: list[dict[str, str]]
+    raw_rows: list[dict[str, str]]
+
+
+def _read_csv(path: Path) -> list[dict[str, str]]:
+    with open(path, newline="") as fh:
+        return list(csv.DictReader(fh))
+
+
+def discover_artifacts(prefix: str) -> ImportArtifacts:
+    """Load the clean/raw/manifest trio sharing an output prefix.
+
+    `prefix` is the path stem, e.g. data/output/open_accounts__7bf2070f
+    """
+    base = Path(prefix)
+    manifest_path = base.with_name(base.name + "__manifest.json")
+    clean_path = base.with_name(base.name + "__accounts_clean.csv")
+    raw_path = base.with_name(base.name + "__raw_rows.csv")
+
+    for p in (manifest_path, clean_path, raw_path):
+        if not p.exists():
+            raise FileNotFoundError(f"expected artifact not found: {p}")
+
+    return ImportArtifacts(
+        manifest=json.loads(manifest_path.read_text()),
+        clean_rows=_read_csv(clean_path),
+        raw_rows=_read_csv(raw_path),
+    )
+
+
+def _empty_to_none(row: dict[str, str], columns: list[str]) -> dict[str, Any]:
+    """Project a CSV row to the given columns, turning '' into None."""
+    return {c: (row.get(c) or None) for c in columns}
+
+
+def load(
+    artifacts: ImportArtifacts,
+    *,
+    url: str,
+    service_role_key: str,
+    force: bool = False,
+) -> dict[str, Any]:
+    """Write the artifacts to Supabase. Returns a small summary dict.
+
+    Idempotency: if a batch with the same file_sha256 already exists, we skip
+    unless `force=True` (which creates a fresh batch and re-upserts accounts).
+    """
+    from supabase import create_client  # imported lazily so --dry-run needs no dep
+
+    client = create_client(url, service_role_key)
+    sha = artifacts.manifest["file_sha256"]
+
+    existing = (
+        client.table("import_batches")
+        .select("id")
+        .eq("file_sha256", sha)
+        .execute()
+    )
+    if existing.data and not force:
+        return {
+            "skipped": True,
+            "reason": f"file_sha256 {sha[:8]} already imported "
+                      f"(batch {existing.data[0]['id']}). Use force=True to re-import.",
+        }
+
+    # 1. import_batches
+    m = artifacts.manifest
+    batch = (
+        client.table("import_batches")
+        .insert({
+            "source_filename": m["source_filename"],
+            "file_sha256": sha,
+            "raw_row_count": m.get("raw_row_count", len(artifacts.raw_rows)),
+            "clean_row_count": m.get("clean_row_count", len(artifacts.clean_rows)),
+            "status": "imported",
+        })
+        .execute()
+    )
+    batch_id = batch.data[0]["id"]
+
+    # 2. raw_account_rows (chunked)
+    raw_payload = [
+        {**_empty_to_none(r, RAW_COLUMNS), "batch_id": batch_id}
+        for r in artifacts.raw_rows
+    ]
+    _chunked_insert(client, "raw_account_rows", raw_payload)
+
+    # 3. accounts upsert on dedup_key. We set last_seen_batch here but NOT
+    #    first_seen_batch, so existing accounts keep their original first_seen.
+    acct_payload = [
+        {**_empty_to_none(r, ACCOUNT_COLUMNS), "last_seen_batch": batch_id}
+        for r in artifacts.clean_rows
+    ]
+    _chunked_upsert(client, "accounts", acct_payload, on_conflict="dedup_key")
+
+    # backfill first_seen_batch for brand-new accounts only
+    client.table("accounts").update({"first_seen_batch": batch_id}).is_(
+        "first_seen_batch", "null"
+    ).execute()
+
+    # 4. mark batch loaded
+    client.table("import_batches").update({"status": "loaded"}).eq(
+        "id", batch_id
+    ).execute()
+
+    return {
+        "skipped": False,
+        "batch_id": batch_id,
+        "raw_rows_inserted": len(raw_payload),
+        "accounts_upserted": len(acct_payload),
+    }
+
+
+def _chunked_insert(client, table: str, rows: list[dict], size: int = 500) -> None:
+    for i in range(0, len(rows), size):
+        client.table(table).insert(rows[i:i + size]).execute()
+
+
+def _chunked_upsert(client, table: str, rows: list[dict], *, on_conflict: str,
+                    size: int = 500) -> None:
+    for i in range(0, len(rows), size):
+        client.table(table).upsert(rows[i:i + size], on_conflict=on_conflict).execute()
