@@ -255,6 +255,14 @@ def load_scores(client, score_rows: list[dict]) -> dict:
     return {"scores_upserted": len(payload)}
 
 
+def load_triggers(client, trigger_rows: list[dict]) -> dict:
+    """Upsert detected trigger articles (dedup per account+url)."""
+    payload = [r for r in trigger_rows if r.get("account_id") and r.get("url")]
+    if payload:
+        _chunked_upsert(client, "account_triggers", payload, on_conflict="account_id,url")
+    return {"triggers_upserted": len(payload)}
+
+
 def _chunked_insert(client, table: str, rows: list[dict], size: int = 500) -> None:
     for i in range(0, len(rows), size):
         client.table(table).insert(rows[i:i + size]).execute()
