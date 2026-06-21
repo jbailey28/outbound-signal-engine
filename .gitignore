@@ -1,0 +1,24 @@
+# --- secrets / config ---
+.env
+.env.local
+*.local
+
+# --- real account data never enters git ---
+data/raw_pdfs/*
+!data/raw_pdfs/.gitkeep
+data/output/*
+!data/output/.gitkeep
+
+# --- python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# --- os / editor ---
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,11 @@
+# --- Milestone 1: PDF import ---
+pdfplumber==0.11.4        # extract tables from Salesforce Printable-View PDFs
+pandas==2.2.3             # dedupe + CSV output
+python-dotenv==1.0.1      # load config from .env
+
+# --- dev / test ---
+reportlab==4.2.5          # generate the synthetic sample PDF
+pytest==8.3.3
+
+# --- later milestones (kept here so the schema/loader stay reproducible) ---
+# supabase==2.9.1         # uncomment when wiring the Supabase loader
