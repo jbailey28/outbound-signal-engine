@@ -108,6 +108,18 @@ create trigger trg_accounts_updated_at
     for each row execute function set_updated_at();
 
 -- ---------------------------------------------------------------------------
+-- Row Level Security
+-- ---------------------------------------------------------------------------
+-- Enable RLS on all three tables and add NO public policies. The importer
+-- connects with the Supabase service-role key, which bypasses RLS, so the
+-- pipeline keeps working — but the public anon/authenticated keys get zero
+-- access to this internal account data. This is the safe default for a
+-- server-side data pipeline (and for a public portfolio repo).
+alter table import_batches   enable row level security;
+alter table raw_account_rows enable row level security;
+alter table accounts         enable row level security;
+
+-- ---------------------------------------------------------------------------
 -- Upsert reference (how the loader merges a reviewed CSV — single conflict key):
 --
 --   insert into accounts (account_name, website, domain, name_key, dedup_key,
