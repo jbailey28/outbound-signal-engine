@@ -89,7 +89,7 @@ def main() -> int:
         a, sc = item
         source = GoogleNewsRSS(session=make_session())
         articles = source.search(a["account_name"], limit=10)
-        tscore, scored = score_triggers(articles, now)
+        tscore, scored = score_triggers(articles, now, company=a["account_name"])
         return a, sc, tscore, scored
 
     from concurrent.futures import ThreadPoolExecutor

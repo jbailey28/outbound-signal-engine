@@ -16,6 +16,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from .domains import name_key
 from .news import Article
 
 BASE = 10
@@ -69,6 +70,22 @@ def classify(title: str) -> str | None:
     return None
 
 
+def _norm(text: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]+", " ", (text or "").lower())).strip()
+
+
+def is_relevant(title: str, company: str) -> bool:
+    """Cheap precision filter: the company name must appear in the headline.
+
+    Removes off-target matches (e.g. a Burberry article surfacing for a small
+    fashion brand). Matching is suffix-aware ("Whirlpool Corporation" still
+    matches a "Whirlpool ..." headline) via name_key. Doesn't resolve true name
+    collisions (same name, different entity) — left for human review.
+    """
+    core = name_key(company) or _norm(company)
+    return bool(core) and core in _norm(title)
+
+
 def _weight(ttype: str) -> int:
     return next(w for t, w, _ in TRIGGER_TYPES if t == ttype)
 
@@ -105,10 +122,16 @@ def score_article(article: Article, now: datetime) -> ScoredTrigger | None:
                          article.published_at, article.source, points)
 
 
-def score_account(articles: list[Article], now: datetime | None = None
+def score_account(articles: list[Article], now: datetime | None = None,
+                  company: str | None = None
                   ) -> tuple[int, list[ScoredTrigger]]:
-    """Return (trigger_score capped at MAX, scored triggers sorted strongest-first)."""
+    """Return (trigger_score capped at MAX, scored triggers sorted strongest-first).
+
+    If `company` is given, headlines that don't mention it are dropped first.
+    """
     now = now or datetime.now(timezone.utc)
+    if company:
+        articles = [a for a in articles if is_relevant(a.title, company)]
     scored = [s for a in articles if (s := score_article(a, now))]
     scored.sort(key=lambda s: (-s.score, s.published_at or datetime.min.replace(tzinfo=timezone.utc)))
     total = min(TRIGGER_SCORE_MAX, sum(s.score for s in scored))

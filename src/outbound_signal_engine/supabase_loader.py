@@ -256,11 +256,21 @@ def load_scores(client, score_rows: list[dict]) -> dict:
 
 
 def load_triggers(client, trigger_rows: list[dict]) -> dict:
-    """Upsert detected trigger articles (dedup per account+url)."""
+    """Replace the trigger set for each scanned account (idempotent refresh).
+
+    Delete-then-insert per account rather than upsert, so a re-run reflects the
+    current news snapshot without depending on a partial unique index (which
+    PostgREST can't target with ON CONFLICT).
+    """
     payload = [r for r in trigger_rows if r.get("account_id") and r.get("url")]
+    account_ids = list({r["account_id"] for r in payload})
+    for i in range(0, len(account_ids), 100):
+        client.table("account_triggers").delete().in_(
+            "account_id", account_ids[i:i + 100]
+        ).execute()
     if payload:
-        _chunked_upsert(client, "account_triggers", payload, on_conflict="account_id,url")
-    return {"triggers_upserted": len(payload)}
+        _chunked_insert(client, "account_triggers", payload)
+    return {"triggers_inserted": len(payload)}
 
 
 def _chunked_insert(client, table: str, rows: list[dict], size: int = 500) -> None:

@@ -13,6 +13,7 @@ from outbound_signal_engine.news import Article, dedupe  # noqa: E402
 from outbound_signal_engine.triggers import (  # noqa: E402
     TRIGGER_SCORE_MAX,
     classify,
+    is_relevant,
     recency_factor,
     score_account,
 )
@@ -66,6 +67,21 @@ def test_score_capped_and_sorted():
 def test_old_news_ignored():
     total, scored = score_account([_art("Acme raises $10M", days_ago=300)], NOW)
     assert total == 0 and scored == []
+
+
+def test_is_relevant_requires_company_in_title():
+    assert is_relevant("Jacques Marie Mage launches new frames", "Jacques Marie Mage")
+    assert not is_relevant("Burberry Launches Pop-Up at Corner Bistro", "Jacques Marie Mage")
+
+
+def test_company_filter_drops_offtarget_articles():
+    arts = [
+        _art("Burberry launches pop-up", 3),          # off-target, no company name
+        _art("Acme launches new app", 3),             # on-target
+    ]
+    total, scored = score_account(arts, NOW, company="Acme")
+    assert len(scored) == 1
+    assert scored[0].title.startswith("Acme")
 
 
 def test_dedupe_by_url_and_title():
