@@ -28,11 +28,25 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from outbound_signal_engine.emails import generate_draft, load_config  # noqa: E402
+from outbound_signal_engine.emails import generate_draft, load_config, vertical_for  # noqa: E402
+from outbound_signal_engine.socials import extract_instagram, instagram_search_url  # noqa: E402
 from outbound_signal_engine.supabase_loader import (  # noqa: E402
     fetch_prospects_for_drafts,
     make_client,
 )
+from outbound_signal_engine.web import fetch, make_session  # noqa: E402
+
+
+def _instagram_for(prospect: dict, session) -> str:
+    """Real IG profile link from the homepage, else a Google search fallback."""
+    domain = prospect.get("domain")
+    if domain:
+        res = fetch(f"https://{domain}", session=session)
+        if res.ok:
+            found = extract_instagram(res.html)
+            if found:
+                return found
+    return instagram_search_url(prospect["account_name"])
 
 DEFAULT_CONFIG = "data/reference/email_config.json"
 SAMPLE_CONFIG = "data/sample/email_config.sample.json"
@@ -115,6 +129,7 @@ def main() -> int:
                 config=config, style_guide=style_guide)
         print(f"generating with {provider} ({model}); falling back to templates on error")
 
+    session = make_session()  # for the per-draft Instagram homepage lookup
     rows = []
     for i, p in enumerate(prospects, start=1):
         d = None
@@ -131,15 +146,23 @@ def main() -> int:
                 sub_industry=p.get("sub_industry"), trigger_type=p.get("top_trigger_type"),
                 config=config,
             )
+        website = p.get("website") or (f"https://{p['domain']}" if p.get("domain") else "")
+        vertical = vertical_for(p.get("industry"), p.get("sub_industry"))
+        instagram = _instagram_for(p, session)
+
         slug = re.sub(r"[^a-z0-9]+", "-", p["account_name"].lower()).strip("-")[:40]
         (out_dir / f"{i:02d}_{slug}.txt").write_text(
-            f"To: {p['account_name']} ({p.get('domain') or ''})\n"
-            f"Segment: {d.segment} | Score: {p['total_score']} | "
+            f"Company:   {p['account_name']}\n"
+            f"Website:   {website}\n"
+            f"Vertical:  {vertical}\n"
+            f"Instagram: {instagram}\n"
+            f"Segment:   {d.segment} | Score: {p['total_score']} | "
             f"Trigger: {p.get('top_trigger_type') or 'none'}\n"
-            f"Subject: {d.subject}\n\n{d.body}\n"
+            f"Subject:   {d.subject}\n\n{d.body}\n"
         )
         rows.append({
-            "rank": i, "account_name": p["account_name"], "domain": p.get("domain") or "",
+            "rank": i, "account_name": p["account_name"], "website": website,
+            "vertical": vertical, "instagram": instagram,
             "segment": d.segment, "template": d.template, "score": p["total_score"],
             "trigger_type": p.get("top_trigger_type") or "", "used_trigger": d.used_trigger,
             "subject": d.subject, "body": d.body,
@@ -155,7 +178,10 @@ def main() -> int:
         print("\n" + "=" * 64)
         print(f"  #{r['rank']}  {r['account_name']}  [{r['segment']}, score {r['score']}, "
               f"trigger: {r['trigger_type'] or 'none'}]")
-        print(f"  Subject: {r['subject']}")
+        print(f"  Website:   {r['website']}")
+        print(f"  Vertical:  {r['vertical']}")
+        print(f"  Instagram: {r['instagram']}")
+        print(f"  Subject:   {r['subject']}")
         print("-" * 64)
         print(r["body"])
     print("\n" + "=" * 64)

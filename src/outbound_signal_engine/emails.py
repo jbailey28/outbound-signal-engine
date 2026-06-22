@@ -26,7 +26,8 @@ from typing import Any
 # (falls back to "default").
 _VERTICAL_KEYWORDS: list[tuple[str, str]] = [
     ("activewear", "activewear"), ("athleisure", "activewear"),
-    ("menswear", "fashion_mens"), ("womenswear", "fashion_womens"),
+    # "womenswear" must precede "menswear" — the latter is a substring of the former
+    ("womenswear", "fashion_womens"), ("menswear", "fashion_mens"),
     ("apparel", "fashion_womens"), ("clothing", "fashion_womens"), ("fashion", "fashion_womens"),
     ("haircare", "haircare"), ("hair", "haircare"),
     ("beauty", "beauty"), ("cosmetic", "beauty"), ("wellness", "beauty"),

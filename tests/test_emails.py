@@ -55,6 +55,8 @@ def test_vertical_mapping():
     assert vertical_for("Retail & Shopping", "Health & Beauty") == "beauty"
     assert vertical_for("Retail", "Jewellery") == "jewelry"
     assert vertical_for("Retail", "Menswear") == "fashion_mens"
+    # "menswear" is a substring of "womenswear" — must not false-match
+    assert vertical_for("Retail", "Jewellery; Womenswear") == "fashion_womens"
     assert vertical_for("Mystery", "Mystery") == "default"
 
 

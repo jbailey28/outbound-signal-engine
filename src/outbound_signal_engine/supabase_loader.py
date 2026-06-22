@@ -252,7 +252,7 @@ def fetch_prospects_for_drafts(client) -> list[dict]:
     """Accounts enriched with segment/score + their top trigger type, ranked."""
     accts = (
         client.table("accounts")
-        .select("id,account_name,domain,industry,sub_industry,"
+        .select("id,account_name,domain,website,industry,sub_industry,"
                 "account_scores(segment,total_score)")
         .execute().data
     )
@@ -272,6 +272,7 @@ def fetch_prospects_for_drafts(client) -> list[dict]:
             "account_id": a["id"],
             "account_name": a["account_name"],
             "domain": a.get("domain"),
+            "website": a.get("website"),
             "industry": a.get("industry"),
             "sub_industry": a.get("sub_industry"),
             "segment": sc.get("segment", "unknown"),
