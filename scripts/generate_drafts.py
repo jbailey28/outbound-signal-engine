@@ -73,6 +73,8 @@ def main() -> int:
                     help="draft generator: template (default, free), claude (Anthropic API), "
                          "ollama (local, free)")
     ap.add_argument("--llm", action="store_true", help="alias for --provider claude")
+    ap.add_argument("--out-dir", default=None,
+                    help="write drafts here (overwritten) instead of a timestamped folder")
     args = ap.parse_args()
     provider = args.provider or ("claude" if args.llm else "template")
 
@@ -97,8 +99,14 @@ def main() -> int:
         prospects = [p for p in prospects if p["segment"] != "existing_customer"]
     prospects = prospects[:args.top]
 
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    out_dir = Path("data/output") / f"drafts__{stamp}"
+    if args.out_dir:
+        out_dir = Path(args.out_dir)
+        if out_dir.exists():  # stable folder: clear stale drafts from a prior run
+            for old in out_dir.glob("*.txt"):
+                old.unlink()
+    else:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        out_dir = Path("data/output") / f"drafts__{stamp}"
     out_dir.mkdir(parents=True, exist_ok=True)
     csv_path = out_dir / "_drafts.csv"
 
