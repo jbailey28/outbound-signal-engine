@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from outbound_signal_engine.emails import load_config  # noqa: E402
-from outbound_signal_engine.emails_llm import build_prompt  # noqa: E402
+from outbound_signal_engine.emails_llm import build_prompt, parse_subject_body  # noqa: E402
 
 CONFIG = load_config(
     Path(__file__).resolve().parent.parent / "data" / "sample" / "email_config.sample.json"
@@ -51,3 +51,19 @@ def test_no_trigger_falls_back_to_industry_observation():
 def test_social_proof_brands_in_prompt():
     _, user = _prompt("greenfield")  # footwear vertical in sample config
     assert "Acme Footwear" in user
+
+
+def test_parse_subject_body_plain_json():
+    d = parse_subject_body('{"subject": "Hi", "body": "Line1\\nLine2"}')
+    assert d == {"subject": "Hi", "body": "Line1\nLine2"}
+
+
+def test_parse_subject_body_with_code_fence_and_prose():
+    raw = 'Here you go:\n```json\n{"subject": "S", "body": "B"}\n```'
+    d = parse_subject_body(raw)
+    assert d["subject"] == "S" and d["body"] == "B"
+
+
+def test_parse_subject_body_fallback_to_body():
+    d = parse_subject_body("just some text, no json")
+    assert d["subject"] == "" and "just some text" in d["body"]

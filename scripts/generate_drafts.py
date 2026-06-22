@@ -99,7 +99,7 @@ def main() -> int:
             from anthropic import Anthropic
             from outbound_signal_engine.emails_llm import DEFAULT_MODEL, generate_draft_llm
             client = Anthropic()
-            model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)
+            model = os.environ.get("ANTHROPIC_MODEL") or DEFAULT_MODEL
             llm_generate = lambda p: generate_draft_llm(  # noqa: E731
                 account_id=p["account_id"], account_name=p["account_name"], segment=p["segment"],
                 industry=p.get("industry"), sub_industry=p.get("sub_industry"),
@@ -107,7 +107,7 @@ def main() -> int:
                 config=config, style_guide=style_guide, client=client)
         else:  # ollama
             from outbound_signal_engine.emails_ollama import DEFAULT_MODEL, generate_draft_ollama
-            model = os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
+            model = os.environ.get("OLLAMA_MODEL") or DEFAULT_MODEL
             llm_generate = lambda p: generate_draft_ollama(  # noqa: E731
                 account_id=p["account_id"], account_name=p["account_name"], segment=p["segment"],
                 industry=p.get("industry"), sub_industry=p.get("sub_industry"),

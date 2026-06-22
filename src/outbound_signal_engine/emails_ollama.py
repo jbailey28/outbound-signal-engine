@@ -19,14 +19,13 @@ speaks Ollama's /api/chat — point OLLAMA_BASE_URL at it.
 
 from __future__ import annotations
 
-import json
 import os
 from typing import Any
 
 import requests
 
 from .emails import Draft
-from .emails_llm import build_prompt
+from .emails_llm import build_prompt, parse_subject_body
 
 DEFAULT_MODEL = "llama3.1"
 DEFAULT_BASE_URL = "http://localhost:11434"
@@ -56,8 +55,8 @@ def generate_draft_ollama(
 ) -> Draft:
     """Generate a draft with a local Ollama model. Raises on connection/parse error
     so the caller can fall back to the template generator."""
-    model = model or os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
-    base = (base_url or os.environ.get("OLLAMA_BASE_URL", DEFAULT_BASE_URL)).rstrip("/")
+    model = model or os.environ.get("OLLAMA_MODEL") or DEFAULT_MODEL
+    base = (base_url or os.environ.get("OLLAMA_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
     system, user = build_prompt(
         account_name=account_name, segment=segment, industry=industry,
         sub_industry=sub_industry, trigger_type=trigger_type, trigger_title=trigger_title,
@@ -80,14 +79,14 @@ def generate_draft_ollama(
     )
     resp.raise_for_status()
     content = resp.json()["message"]["content"]
-    data = json.loads(content)
+    data = parse_subject_body(content)
 
     return Draft(
         account_id=account_id,
         account_name=account_name,
         segment=segment,
         template="ollama",
-        subject=str(data.get("subject", "")).strip(),
-        body=str(data.get("body", "")).strip(),
+        subject=data["subject"],
+        body=data["body"],
         used_trigger=bool(trigger_type and trigger_title),
     )

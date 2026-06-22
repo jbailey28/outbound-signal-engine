@@ -17,22 +17,30 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any
 
 from .emails import Draft, _pick, vertical_for
 
 DEFAULT_MODEL = "claude-opus-4-8"
 
-# Constrains the response so we always get a clean subject + body.
-_OUTPUT_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "subject": {"type": "string"},
-        "body": {"type": "string"},
-    },
-    "required": ["subject", "body"],
-    "additionalProperties": False,
-}
+
+def parse_subject_body(text: str) -> dict[str, str]:
+    """Pull {subject, body} out of a model response, tolerant of code fences or
+    stray prose around the JSON. Falls back to treating the whole text as body."""
+    t = (text or "").strip()
+    if t.startswith("```"):
+        t = re.sub(r"^```[a-zA-Z]*\n?", "", t)
+        t = re.sub(r"\n?```$", "", t).strip()
+    m = re.search(r"\{.*\}", t, re.S)
+    if m:
+        try:
+            data = json.loads(m.group(0))
+            return {"subject": str(data.get("subject", "")).strip(),
+                    "body": str(data.get("body", "")).strip()}
+        except (ValueError, AttributeError):
+            pass
+    return {"subject": "", "body": t}
 
 
 def _program_status(segment: str) -> str:
@@ -75,7 +83,9 @@ def build_prompt(
         "it's delivering — never name their current platform.\n"
         "- Name the three provided social-proof brands as companies that use the platform.\n"
         "- End with a short call-to-action question and the sign-off, then a line '[ Book a Meeting ]'.\n"
-        "- Keep it under ~150 words. No subject-line clickbait.\n\n"
+        "- Keep it under ~150 words. No subject-line clickbait.\n"
+        "- Respond with ONLY a JSON object: {\"subject\": \"...\", \"body\": \"...\"} and nothing "
+        "else. Use \\n for line breaks inside body.\n\n"
         f"EXAMPLES (the rep's real emails — match this voice):\n{style_guide}"
     )
 
@@ -91,7 +101,7 @@ def build_prompt(
         user += f"Recent trigger ({trigger_type}): \"{trigger_title}\"\n"
     else:
         user += "Recent trigger: none found — use a light industry observation.\n"
-    user += "\nReturn a subject and the email body."
+    user += "\nReturn ONLY the JSON object with \"subject\" and \"body\"."
     return system, user
 
 
@@ -113,7 +123,7 @@ def generate_draft_llm(
     from anthropic import Anthropic  # lazy: template-only users don't need the SDK
 
     client = client or Anthropic()
-    model = model or os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)
+    model = model or os.environ.get("ANTHROPIC_MODEL") or DEFAULT_MODEL
     system, user = build_prompt(
         account_name=account_name, segment=segment, industry=industry,
         sub_industry=sub_industry, trigger_type=trigger_type, trigger_title=trigger_title,
@@ -125,19 +135,18 @@ def generate_draft_llm(
         max_tokens=1024,
         system=system,
         messages=[{"role": "user", "content": user}],
-        output_config={"format": {"type": "json_schema", "schema": _OUTPUT_SCHEMA}},
     )
     if resp.stop_reason == "refusal":
         raise RuntimeError("model refused to draft this email")
-    text = next(b.text for b in resp.content if b.type == "text")
-    data = json.loads(text)
+    text = next((b.text for b in resp.content if b.type == "text"), "")
+    data = parse_subject_body(text)
 
     return Draft(
         account_id=account_id,
         account_name=account_name,
         segment=segment,
         template="llm",
-        subject=data["subject"].strip(),
-        body=data["body"].strip(),
+        subject=data["subject"],
+        body=data["body"],
         used_trigger=bool(trigger_type and trigger_title),
     )
