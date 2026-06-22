@@ -1,0 +1,23 @@
+{
+  "_comment": "Sample email config with FICTIONAL brands so the repo runs out of the box. Copy to data/reference/email_config.json and replace with your real platform, social-proof roster, and templates.",
+  "sender": "Your Name",
+  "platform": "YourPlatform",
+  "cta": "Would you be open to a quick chat this week?",
+  "booking": "[ Book a Meeting ]",
+  "social_proof": {
+    "beauty": ["Acme Beauty", "Globex Cosmetics", "Initech Skin"],
+    "footwear": ["Acme Footwear", "Globex Shoes", "Initech Sport"],
+    "jewelry": ["Acme Jewels", "Globex Gold", "Initech Gems"],
+    "dtc_food": ["Acme Foods", "Globex Snacks", "Initech Nutrition"],
+    "default": ["Acme Co", "Globex", "Initech"]
+  },
+  "partner_types": {
+    "beauty": "creator, influencer, and content",
+    "footwear": "outdoor, fitness, and adventure",
+    "default": "creator, publisher, and affiliate"
+  },
+  "templates": {
+    "off_program": "Hey {first_name},\n\n{observation}\n\nI'm reaching out from {platform}, the platform brands like {social_proof} use to build and manage their partner ecosystems.\n\nWhile looking into {company}, I didn't see an affiliate or partner program in place, and it felt like there could be a good opportunity to support growth through {partner_types} partners.\n\nIf it's helpful, I'd be happy to share how we're working with similar brands on partner recruitment, publisher mix, and driving e-commerce growth.\n\n{cta}\n\nBest regards,\n{sender}\n\n{booking}",
+    "on_program": "Hey {first_name},\n\n{observation}\n\nI'm reaching out from {platform}, the platform brands like {social_proof} use to build and manage their partner ecosystems across creators, publishers, affiliates, and technology partners.\n\nWhile looking into {company}, I saw there's already an affiliate program in place, so I was curious if it's delivering what the team expected from the channel?\n\nIf it's helpful, I'd be happy to share how we're working with similar brands on partner recruitment, publisher mix, and driving e-commerce growth.\n\n{cta}\n\nBest regards,\n{sender}\n\n{booking}"
+  }
+}

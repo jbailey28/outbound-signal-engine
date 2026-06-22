@@ -34,10 +34,16 @@ def test_non_impact_platform_is_high():
     assert _score(True, "avantlink").fit_score == 70
 
 
-def test_on_impact_is_lowest():
+def test_on_impact_is_lowest_among_prospects():
     s = _score(True, "impact")
     assert s.segment == "on_impact"
     assert s.fit_score == 20
+
+
+def test_own_platform_is_existing_customer():
+    s = _score(True, "awin")
+    assert s.segment == "existing_customer"
+    assert s.fit_score == 0
 
 
 def test_unknown_flagged_for_review():
@@ -61,5 +67,6 @@ def test_trigger_score_adds_on_top():
 def test_classify_segment_direct():
     assert classify_segment(False, None) == "greenfield"
     assert classify_segment(True, "IMPACT") == "on_impact"  # case-insensitive
-    assert classify_segment(True, "awin") == "non_impact_platform"
+    assert classify_segment(True, "cj") == "non_impact_platform"
+    assert classify_segment(True, "awin") == "existing_customer"
     assert classify_segment(None, None) == "unknown"

@@ -248,6 +248,40 @@ def fetch_accounts_with_signals(client) -> list[dict]:
     return out
 
 
+def fetch_prospects_for_drafts(client) -> list[dict]:
+    """Accounts enriched with segment/score + their top trigger type, ranked."""
+    accts = (
+        client.table("accounts")
+        .select("id,account_name,domain,industry,sub_industry,"
+                "account_scores(segment,total_score)")
+        .execute().data
+    )
+    trigs = client.table("account_triggers").select(
+        "account_id,trigger_type,score").execute().data
+    top: dict[str, dict] = {}
+    for t in trigs:
+        aid = t["account_id"]
+        if aid not in top or (t.get("score") or 0) > (top[aid].get("score") or 0):
+            top[aid] = t
+
+    out = []
+    for a in accts:
+        scores = a.get("account_scores") or []
+        sc = scores[0] if scores else {}
+        out.append({
+            "account_id": a["id"],
+            "account_name": a["account_name"],
+            "domain": a.get("domain"),
+            "industry": a.get("industry"),
+            "sub_industry": a.get("sub_industry"),
+            "segment": sc.get("segment", "unknown"),
+            "total_score": sc.get("total_score", 0) or 0,
+            "top_trigger_type": top.get(a["id"], {}).get("trigger_type"),
+        })
+    out.sort(key=lambda r: -r["total_score"])
+    return out
+
+
 def load_scores(client, score_rows: list[dict]) -> dict:
     """Upsert account_scores (one current score per account)."""
     payload = [r for r in score_rows if r.get("account_id")]

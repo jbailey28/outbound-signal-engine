@@ -28,7 +28,7 @@ the high-value part: the actual sequencing and relationship-building.
 | **M2 — Affiliate/Partner Signal Detection** | Tier 1: derive platform from CRM Competitors column. Tier 2: scrape sites for program pages + affiliate-network fingerprints | ✅ done |
 | **M3 — Trigger Detection** | Recent news triggers (funding/M&A/hire/launch/expansion) via Google News → timing bonus on the score | ✅ done |
 | **M4 — Account Scoring** | Opportunity score (greenfield > non-Impact platform > on Impact) → ranked daily list | ✅ done |
-| M5 — First-Touch Draft Generation | Draft (not send) emails from signals + triggers + sample messaging | planned |
+| **M5 — First-Touch Draft Generation** | Draft (never send) emails from segment + trigger + vertical, using configurable templates | ✅ done |
 
 ## Milestone 1 — Account Book Import (this milestone)
 

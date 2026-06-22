@@ -18,14 +18,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-# Our own platform — accounts already here are the lowest-opportunity targets.
-HOME_PLATFORM = "impact"
+# We sell Awin. Accounts already on Awin are existing customers (not prospects).
+OWN_PLATFORM = "awin"
+# Impact is the toughest competitor to displace -> lowest score among prospects.
+HARDEST_COMPETITOR = "impact"
 
 SEGMENT_SCORES: dict[str, int] = {
-    "greenfield": 100,
-    "non_impact_platform": 70,
-    "unknown": 50,
-    "on_impact": 20,
+    "greenfield": 100,           # no program -> most untapped opportunity
+    "non_impact_platform": 70,   # on a softer competitor / in-house -> switchable
+    "unknown": 50,               # signal unresolved -> manual review
+    "on_impact": 20,             # on our hardest competitor -> lowest among prospects
+    "existing_customer": 0,      # already on Awin -> not a prospect
 }
 
 
@@ -50,8 +53,11 @@ def classify_segment(has_program: bool | None, platform: str | None) -> str:
         return "unknown"
     if has_program is False:
         return "greenfield"
-    # has a program
-    if (platform or "").lower() == HOME_PLATFORM:
+    # has a program — segment by which platform
+    p = (platform or "").lower()
+    if p == OWN_PLATFORM:
+        return "existing_customer"   # already an Awin customer
+    if p == HARDEST_COMPETITOR:
         return "on_impact"
     return "non_impact_platform"
 
