@@ -257,7 +257,7 @@ def fetch_prospects_for_drafts(client) -> list[dict]:
         .execute().data
     )
     trigs = client.table("account_triggers").select(
-        "account_id,trigger_type,score").execute().data
+        "account_id,trigger_type,title,score").execute().data
     top: dict[str, dict] = {}
     for t in trigs:
         aid = t["account_id"]
@@ -277,6 +277,7 @@ def fetch_prospects_for_drafts(client) -> list[dict]:
             "segment": sc.get("segment", "unknown"),
             "total_score": sc.get("total_score", 0) or 0,
             "top_trigger_type": top.get(a["id"], {}).get("trigger_type"),
+            "top_trigger_title": top.get(a["id"], {}).get("title"),
         })
     out.sort(key=lambda r: -r["total_score"])
     return out

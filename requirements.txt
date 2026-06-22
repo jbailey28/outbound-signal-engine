@@ -14,3 +14,6 @@ supabase==2.31.0          # load reviewed artifacts into Supabase
 # --- Tier-2 website scraping ---
 requests==2.32.3          # polite website fetching
 beautifulsoup4==4.12.3    # parse HTML for program links / network fingerprints
+
+# --- M5 LLM draft generation (optional; only needed for `generate_drafts.py --llm`) ---
+anthropic==0.69.0         # Claude API for natural first-touch drafts

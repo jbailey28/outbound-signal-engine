@@ -36,6 +36,15 @@ from outbound_signal_engine.supabase_loader import (  # noqa: E402
 
 DEFAULT_CONFIG = "data/reference/email_config.json"
 SAMPLE_CONFIG = "data/sample/email_config.sample.json"
+STYLE_GUIDE_PATH = "data/reference/sample_messaging.txt"
+
+
+def _load_style_guide(config: dict) -> str:
+    """Few-shot style for the LLM: the rep's real emails if present, else templates."""
+    p = Path(STYLE_GUIDE_PATH)
+    if p.exists():
+        return p.read_text()
+    return "\n\n".join(config.get("templates", {}).values())
 
 
 def main() -> int:
@@ -46,6 +55,8 @@ def main() -> int:
     ap.add_argument("--top", type=int, default=5, help="how many drafts (default 5)")
     ap.add_argument("--include-customers", action="store_true",
                     help="also draft for existing_customer accounts (normally skipped)")
+    ap.add_argument("--llm", action="store_true",
+                    help="generate with Claude (needs ANTHROPIC_API_KEY); default is template-fill")
     args = ap.parse_args()
 
     config_path = args.config or (DEFAULT_CONFIG if Path(DEFAULT_CONFIG).exists() else SAMPLE_CONFIG)
@@ -74,14 +85,40 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     csv_path = out_dir / "_drafts.csv"
 
+    llm_client = None
+    style_guide = ""
+    if args.llm:
+        if not os.environ.get("ANTHROPIC_API_KEY"):
+            print("error: --llm needs ANTHROPIC_API_KEY in .env", file=sys.stderr)
+            return 1
+        from anthropic import Anthropic
+        from outbound_signal_engine.emails_llm import DEFAULT_MODEL, generate_draft_llm
+        llm_client = Anthropic()
+        style_guide = _load_style_guide(config)
+        model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)
+        print(f"generating with Claude ({model}); falling back to templates on error")
+
     rows = []
     for i, p in enumerate(prospects, start=1):
-        d = generate_draft(
-            account_id=p["account_id"], account_name=p["account_name"],
-            segment=p["segment"], industry=p.get("industry"),
-            sub_industry=p.get("sub_industry"), trigger_type=p.get("top_trigger_type"),
-            config=config,
-        )
+        d = None
+        if args.llm:
+            try:
+                d = generate_draft_llm(
+                    account_id=p["account_id"], account_name=p["account_name"],
+                    segment=p["segment"], industry=p.get("industry"),
+                    sub_industry=p.get("sub_industry"), trigger_type=p.get("top_trigger_type"),
+                    trigger_title=p.get("top_trigger_title"), config=config,
+                    style_guide=style_guide, client=llm_client,
+                )
+            except Exception as e:  # noqa: BLE001 — fall back so one bad call doesn't kill the run
+                print(f"  ! LLM failed for {p['account_name']} ({e}); using template", file=sys.stderr)
+        if d is None:
+            d = generate_draft(
+                account_id=p["account_id"], account_name=p["account_name"],
+                segment=p["segment"], industry=p.get("industry"),
+                sub_industry=p.get("sub_industry"), trigger_type=p.get("top_trigger_type"),
+                config=config,
+            )
         slug = re.sub(r"[^a-z0-9]+", "-", p["account_name"].lower()).strip("-")[:40]
         (out_dir / f"{i:02d}_{slug}.txt").write_text(
             f"To: {p['account_name']} ({p.get('domain') or ''})\n"
