@@ -55,9 +55,12 @@ def main() -> int:
     ap.add_argument("--top", type=int, default=5, help="how many drafts (default 5)")
     ap.add_argument("--include-customers", action="store_true",
                     help="also draft for existing_customer accounts (normally skipped)")
-    ap.add_argument("--llm", action="store_true",
-                    help="generate with Claude (needs ANTHROPIC_API_KEY); default is template-fill")
+    ap.add_argument("--provider", choices=["template", "claude", "ollama"], default=None,
+                    help="draft generator: template (default, free), claude (Anthropic API), "
+                         "ollama (local, free)")
+    ap.add_argument("--llm", action="store_true", help="alias for --provider claude")
     args = ap.parse_args()
+    provider = args.provider or ("claude" if args.llm else "template")
 
     config_path = args.config or (DEFAULT_CONFIG if Path(DEFAULT_CONFIG).exists() else SAMPLE_CONFIG)
     if not Path(config_path).exists():
@@ -85,33 +88,42 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     csv_path = out_dir / "_drafts.csv"
 
-    llm_client = None
-    style_guide = ""
-    if args.llm:
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            print("error: --llm needs ANTHROPIC_API_KEY in .env", file=sys.stderr)
-            return 1
-        from anthropic import Anthropic
-        from outbound_signal_engine.emails_llm import DEFAULT_MODEL, generate_draft_llm
-        llm_client = Anthropic()
+    # Build the chosen LLM generator (a closure taking a prospect dict). None = template.
+    llm_generate = None
+    if provider != "template":
         style_guide = _load_style_guide(config)
-        model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)
-        print(f"generating with Claude ({model}); falling back to templates on error")
+        if provider == "claude":
+            if not os.environ.get("ANTHROPIC_API_KEY"):
+                print("error: --provider claude needs ANTHROPIC_API_KEY in .env", file=sys.stderr)
+                return 1
+            from anthropic import Anthropic
+            from outbound_signal_engine.emails_llm import DEFAULT_MODEL, generate_draft_llm
+            client = Anthropic()
+            model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)
+            llm_generate = lambda p: generate_draft_llm(  # noqa: E731
+                account_id=p["account_id"], account_name=p["account_name"], segment=p["segment"],
+                industry=p.get("industry"), sub_industry=p.get("sub_industry"),
+                trigger_type=p.get("top_trigger_type"), trigger_title=p.get("top_trigger_title"),
+                config=config, style_guide=style_guide, client=client)
+        else:  # ollama
+            from outbound_signal_engine.emails_ollama import DEFAULT_MODEL, generate_draft_ollama
+            model = os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
+            llm_generate = lambda p: generate_draft_ollama(  # noqa: E731
+                account_id=p["account_id"], account_name=p["account_name"], segment=p["segment"],
+                industry=p.get("industry"), sub_industry=p.get("sub_industry"),
+                trigger_type=p.get("top_trigger_type"), trigger_title=p.get("top_trigger_title"),
+                config=config, style_guide=style_guide)
+        print(f"generating with {provider} ({model}); falling back to templates on error")
 
     rows = []
     for i, p in enumerate(prospects, start=1):
         d = None
-        if args.llm:
+        if llm_generate is not None:
             try:
-                d = generate_draft_llm(
-                    account_id=p["account_id"], account_name=p["account_name"],
-                    segment=p["segment"], industry=p.get("industry"),
-                    sub_industry=p.get("sub_industry"), trigger_type=p.get("top_trigger_type"),
-                    trigger_title=p.get("top_trigger_title"), config=config,
-                    style_guide=style_guide, client=llm_client,
-                )
+                d = llm_generate(p)
             except Exception as e:  # noqa: BLE001 — fall back so one bad call doesn't kill the run
-                print(f"  ! LLM failed for {p['account_name']} ({e}); using template", file=sys.stderr)
+                print(f"  ! {provider} failed for {p['account_name']} ({e}); using template",
+                      file=sys.stderr)
         if d is None:
             d = generate_draft(
                 account_id=p["account_id"], account_name=p["account_name"],
