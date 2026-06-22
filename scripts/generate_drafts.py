@@ -51,6 +51,7 @@ def _instagram_for(prospect: dict, session) -> str:
 DEFAULT_CONFIG = "data/reference/email_config.json"
 SAMPLE_CONFIG = "data/sample/email_config.sample.json"
 STYLE_GUIDE_PATH = "data/reference/sample_messaging.txt"
+ROSTER_PATH = "data/reference/cool_clients.txt"
 
 
 def _load_style_guide(config: dict) -> str:
@@ -59,6 +60,16 @@ def _load_style_guide(config: dict) -> str:
     if p.exists():
         return p.read_text()
     return "\n\n".join(config.get("templates", {}).values())
+
+
+def _load_roster(config: dict) -> str:
+    """Full client roster for the LLM to pick social proof from. Prefer the real
+    Cool Clients file; else flatten the config's per-vertical brand lists."""
+    p = Path(ROSTER_PATH)
+    if p.exists():
+        return p.read_text()
+    return "\n".join(f"{cat}: {', '.join(brands)}"
+                     for cat, brands in config.get("social_proof", {}).items())
 
 
 def main() -> int:
@@ -114,6 +125,7 @@ def main() -> int:
     llm_generate = None
     if provider != "template":
         style_guide = _load_style_guide(config)
+        roster = _load_roster(config)
         if provider == "claude":
             if not os.environ.get("ANTHROPIC_API_KEY"):
                 print("error: --provider claude needs ANTHROPIC_API_KEY in .env", file=sys.stderr)
@@ -126,7 +138,7 @@ def main() -> int:
                 account_id=p["account_id"], account_name=p["account_name"], segment=p["segment"],
                 industry=p.get("industry"), sub_industry=p.get("sub_industry"),
                 trigger_type=p.get("top_trigger_type"), trigger_title=p.get("top_trigger_title"),
-                config=config, style_guide=style_guide, client=client)
+                config=config, style_guide=style_guide, roster=roster, client=client)
         else:  # ollama
             from outbound_signal_engine.emails_ollama import DEFAULT_MODEL, generate_draft_ollama
             model = os.environ.get("OLLAMA_MODEL") or DEFAULT_MODEL
@@ -134,7 +146,7 @@ def main() -> int:
                 account_id=p["account_id"], account_name=p["account_name"], segment=p["segment"],
                 industry=p.get("industry"), sub_industry=p.get("sub_industry"),
                 trigger_type=p.get("top_trigger_type"), trigger_title=p.get("top_trigger_title"),
-                config=config, style_guide=style_guide)
+                config=config, style_guide=style_guide, roster=roster)
         print(f"generating with {provider} ({model}); falling back to templates on error")
 
     session = make_session()  # for the per-draft Instagram homepage lookup

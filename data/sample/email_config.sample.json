@@ -8,12 +8,16 @@
     "beauty": ["Acme Beauty", "Globex Cosmetics", "Initech Skin"],
     "footwear": ["Acme Footwear", "Globex Shoes", "Initech Sport"],
     "jewelry": ["Acme Jewels", "Globex Gold", "Initech Gems"],
+    "eyewear": ["Acme Optics", "Globex Eyewear", "Initech Shades"],
+    "luxury": ["Acme Luxe", "Globex Couture", "Initech Atelier"],
     "dtc_food": ["Acme Foods", "Globex Snacks", "Initech Nutrition"],
     "default": ["Acme Co", "Globex", "Initech"]
   },
   "partner_types": {
     "beauty": "creator, influencer, and content",
     "footwear": "outdoor, fitness, and adventure",
+    "eyewear": "lifestyle, fashion, and content",
+    "luxury": "luxury, fashion, and content",
     "default": "creator, publisher, and affiliate"
   },
   "templates": {

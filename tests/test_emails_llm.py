@@ -53,6 +53,27 @@ def test_social_proof_brands_in_prompt():
     assert "Acme Footwear" in user
 
 
+def test_roster_changes_instruction_and_is_included():
+    system, user = build_prompt(
+        account_name="Jacques Marie Mage", segment="greenfield",
+        industry="Retail", sub_industry="Eyewear", trigger_type=None, trigger_title=None,
+        config=CONFIG, style_guide=STYLE,
+        roster="Eyewear: Oakley\nLuxury: Karl Lagerfeld, Suitsupply",
+    )
+    assert "ROSTER" in system and "Oakley" in system
+    assert "closest fit" in system or "closest" in user.lower()
+    assert "ONLY" in system  # must pick only from the roster
+
+
+def test_no_roster_keeps_vertical_brands():
+    system, user = build_prompt(
+        account_name="Acme", segment="greenfield", industry="Retail", sub_industry="Footwear",
+        trigger_type=None, trigger_title=None, config=CONFIG, style_guide=STYLE,
+    )
+    assert "ROSTER" not in system
+    assert "Acme Footwear" in user  # falls back to the vertical's brands
+
+
 def test_parse_subject_body_plain_json():
     d = parse_subject_body('{"subject": "Hi", "body": "Line1\\nLine2"}')
     assert d == {"subject": "Hi", "body": "Line1\nLine2"}

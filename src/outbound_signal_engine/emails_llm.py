@@ -61,8 +61,14 @@ def build_prompt(
     trigger_title: str | None,
     config: dict[str, Any],
     style_guide: str,
+    roster: str | None = None,
 ) -> tuple[str, str]:
-    """Assemble (system, user) prompts. Pure — unit-testable without the network."""
+    """Assemble (system, user) prompts. Pure — unit-testable without the network.
+
+    If `roster` (the full client list) is given, the model picks the 3 closest
+    real clients itself (same category, then nearest relevant — e.g. luxury
+    eyewear -> Oakley + luxury fashion). Otherwise it uses the vertical's brands.
+    """
     vertical = vertical_for(industry, sub_industry)
     brands = _pick(config["social_proof"], vertical) or ["our clients"]
     partner_types = _pick(config["partner_types"], vertical) or "creator, publisher, and affiliate"
@@ -81,12 +87,22 @@ def build_prompt(
         "Do NOT invent funding, hires, launches, or any fact beyond the trigger given.\n"
         f"- If the company has no program, pitch building one; if it already has one, ask whether "
         "it's delivering — never name their current platform.\n"
-        "- Name the three provided social-proof brands as companies that use the platform.\n"
-        "- End with a short call-to-action question and the sign-off, then a line '[ Book a Meeting ]'.\n"
+        + (
+            "- Cite exactly THREE real clients from the ROSTER below as brands that use the "
+            "platform. Pick the closest fit to this company: prefer the same category; if there's "
+            "no close category, use the nearest relevant ones (e.g. luxury eyewear with no eyewear "
+            "match -> a sports/eyewear brand like Oakley, plus luxury fashion brands). Use ONLY "
+            "names from the ROSTER — never invent a client.\n"
+            if roster else
+            "- Name the three provided social-proof brands as companies that use the platform.\n"
+        )
+        + "- End with a short call-to-action question and the sign-off, then a line '[ Book a Meeting ]'.\n"
         "- Keep it under ~150 words. No subject-line clickbait.\n"
         "- Respond with ONLY a JSON object: {\"subject\": \"...\", \"body\": \"...\"} and nothing "
         "else. Use \\n for line breaks inside body.\n\n"
         f"EXAMPLES (the rep's real emails — match this voice):\n{style_guide}"
+        + (f"\n\nROSTER (real platform clients by category — choose social proof ONLY from "
+           f"here):\n{roster}" if roster else "")
     )
 
     user = (
@@ -94,8 +110,11 @@ def build_prompt(
         f"Company: {account_name}\n"
         f"Program status: {_program_status(segment)}\n"
         f"Industry: {industry or 'unknown'} / {sub_industry or 'unknown'}\n"
-        f"Social-proof brands to cite (same vertical): {', '.join(brands[:3])}\n"
-        f"Relevant partner types for the observation: {partner_types}\n"
+        + (f"Pick the 3 closest social-proof clients from the ROSTER for this company "
+           f"(suggested vertical match: {', '.join(brands[:3])}).\n"
+           if roster else
+           f"Social-proof brands to cite (same vertical): {', '.join(brands[:3])}\n")
+        + f"Relevant partner types for the observation: {partner_types}\n"
     )
     if trigger_type and trigger_title:
         user += f"Recent trigger ({trigger_type}): \"{trigger_title}\"\n"
@@ -116,6 +135,7 @@ def generate_draft_llm(
     trigger_title: str | None,
     config: dict[str, Any],
     style_guide: str,
+    roster: str | None = None,
     client=None,
     model: str | None = None,
 ) -> Draft:
@@ -127,7 +147,7 @@ def generate_draft_llm(
     system, user = build_prompt(
         account_name=account_name, segment=segment, industry=industry,
         sub_industry=sub_industry, trigger_type=trigger_type, trigger_title=trigger_title,
-        config=config, style_guide=style_guide,
+        config=config, style_guide=style_guide, roster=roster,
     )
 
     resp = client.messages.create(

@@ -49,6 +49,7 @@ def generate_draft_ollama(
     trigger_title: str | None,
     config: dict[str, Any],
     style_guide: str,
+    roster: str | None = None,
     model: str | None = None,
     base_url: str | None = None,
     timeout: int = 120,
@@ -60,7 +61,7 @@ def generate_draft_ollama(
     system, user = build_prompt(
         account_name=account_name, segment=segment, industry=industry,
         sub_industry=sub_industry, trigger_type=trigger_type, trigger_title=trigger_title,
-        config=config, style_guide=style_guide,
+        config=config, style_guide=style_guide, roster=roster,
     )
 
     resp = requests.post(

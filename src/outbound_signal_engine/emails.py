@@ -32,6 +32,8 @@ _VERTICAL_KEYWORDS: list[tuple[str, str]] = [
     ("haircare", "haircare"), ("hair", "haircare"),
     ("beauty", "beauty"), ("cosmetic", "beauty"), ("wellness", "beauty"),
     ("jewel", "jewelry"),
+    ("eyewear", "eyewear"), ("sunglass", "eyewear"), ("glasses", "eyewear"),
+    ("optical", "eyewear"), ("luxury", "luxury"),
     ("watch", "watches"),
     ("shoe", "footwear"), ("footwear", "footwear"),
     ("beverage", "beverages"), ("drink", "beverages"),
