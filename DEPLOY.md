@@ -101,6 +101,35 @@ Import + load run on your **laptop** (they need the Salesforce PDF and your
 CSV review). After loading new accounts to Supabase, the droplet's next daily
 run picks them up automatically — no redeploy needed.
 
+## Alternative: run on a schedule on a Mac (launchd)
+
+For a laptop instead of a server (runs only when the Mac is on/awake):
+
+```bash
+# scripts/run_daily.sh is the wrapper (cd to project + venv python + log).
+chmod +x scripts/run_daily.sh
+```
+
+Create `~/Library/LaunchAgents/com.outbound-signal-engine.daily.plist` with a
+`StartCalendarInterval` (one entry per weekday, Hour 6 / Minute 0) pointing
+`ProgramArguments` at `/bin/bash` + the absolute path to `scripts/run_daily.sh`,
+then load it:
+
+```bash
+launchctl load -w ~/Library/LaunchAgents/com.outbound-signal-engine.daily.plist
+launchctl list | grep outbound-signal-engine   # confirm it's registered
+launchctl start com.outbound-signal-engine.daily   # fire once to test
+```
+
+Manage it:
+
+```bash
+tail -f logs/daily.log                              # watch a run
+launchctl unload ~/Library/LaunchAgents/com.outbound-signal-engine.daily.plist  # turn off
+```
+
+To change the time, edit the plist's Hour/Minute and `unload` then `load -w` again.
+
 ## Cost note
 
 The daily run hits Google News (free) and your draft provider. On Claude
