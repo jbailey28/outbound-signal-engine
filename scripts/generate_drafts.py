@@ -28,6 +28,11 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
+from outbound_signal_engine.contacted import (  # noqa: E402
+    load_contacted_ids,
+    mark_contacted,
+    reset_contacted,
+)
 from outbound_signal_engine.emails import generate_draft, load_config, vertical_for  # noqa: E402
 from outbound_signal_engine.socials import extract_instagram, instagram_search_url  # noqa: E402
 from outbound_signal_engine.supabase_loader import (  # noqa: E402
@@ -86,6 +91,12 @@ def main() -> int:
     ap.add_argument("--llm", action="store_true", help="alias for --provider claude")
     ap.add_argument("--out-dir", default=None,
                     help="write drafts here (overwritten) instead of a timestamped folder")
+    ap.add_argument("--no-mark", action="store_true",
+                    help="preview: don't record these accounts as contacted")
+    ap.add_argument("--include-contacted", action="store_true",
+                    help="ignore the contacted ledger (may repeat accounts)")
+    ap.add_argument("--reset-contacted", action="store_true",
+                    help="clear the contacted ledger and start the rotation over")
     args = ap.parse_args()
     provider = args.provider or ("claude" if args.llm else "template")
 
@@ -104,11 +115,26 @@ def main() -> int:
         print("error: set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env", file=sys.stderr)
         return 1
 
+    if args.reset_contacted and reset_contacted():
+        print("contacted ledger cleared — rotation starts over")
+
     client = make_client(url, key)
     prospects = fetch_prospects_for_drafts(client)
     if not args.include_customers:
         prospects = [p for p in prospects if p["segment"] != "existing_customer"]
+    # exclude accounts already surfaced in prior runs, so each run gives fresh ones
+    if not args.include_contacted:
+        seen = load_contacted_ids()
+        before = len(prospects)
+        prospects = [p for p in prospects if p["account_id"] not in seen]
+        if seen:
+            print(f"skipping {before - len(prospects)} already-contacted accounts "
+                  f"({len(seen)} in ledger)")
     prospects = prospects[:args.top]
+    if not prospects:
+        print("no fresh accounts left — run with --reset-contacted to start the rotation over,"
+              " or --include-contacted to allow repeats.", file=sys.stderr)
+        return 0
 
     if args.out_dir:
         out_dir = Path(args.out_dir)
@@ -204,6 +230,14 @@ def main() -> int:
         print(f"  Subject:   {r['subject']}")
         print("-" * 64)
         print(r["body"])
+    if args.no_mark:
+        print("\n  --no-mark: these were NOT recorded — they'll appear again next run")
+    else:
+        n = mark_contacted([{"account_id": p["account_id"], "account_name": p["account_name"]}
+                            for p in prospects])
+        print(f"\n  recorded {n} account(s) as contacted — next run gives the next batch "
+              "(undo: --reset-contacted)")
+
     print("\n" + "=" * 64)
     print(f"  {len(rows)} drafts written -> {out_dir}/")
     print("  DRAFTS ONLY — review and edit before sending. Fill {{first_name}} per contact.")
