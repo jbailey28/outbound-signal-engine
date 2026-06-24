@@ -57,6 +57,7 @@ def main() -> int:
                     help="skip the triggers/score refresh; just draft + post")
     args = ap.parse_args()
 
+    os.chdir(ROOT)  # operate from the project root regardless of launch directory
     load_dotenv(ROOT / ".env")
     provider = args.provider or os.environ.get("DRAFT_PROVIDER") or "claude"
 

@@ -78,6 +78,11 @@ def _load_roster(config: dict) -> str:
 
 
 def main() -> int:
+    # Always operate from the project root so relative paths (config, the
+    # contacted ledger, output, data/reference) resolve the same no matter
+    # which directory the command was launched from.
+    os.chdir(Path(__file__).resolve().parent.parent)
+
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )

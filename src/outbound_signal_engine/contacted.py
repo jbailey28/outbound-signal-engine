@@ -14,7 +14,9 @@ import csv
 from datetime import datetime, timezone
 from pathlib import Path
 
-DEFAULT_PATH = Path("data/output/contacted.csv")
+# Anchored to the repo root (not the current working directory), so the ledger
+# is always the same file regardless of where a script is launched from.
+DEFAULT_PATH = Path(__file__).resolve().parents[2] / "data" / "output" / "contacted.csv"
 COLUMNS = ["account_id", "account_name", "contacted_at"]
 
 
